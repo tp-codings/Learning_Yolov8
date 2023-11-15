@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-
+from LaneDetector import hermiteTest
 vidcap = cv2.VideoCapture("Videos/LaneVideo.mp4")
 success, image = vidcap.read()
 
@@ -8,7 +8,7 @@ width = 640
 height = 480
 
 fac = 60
-acc = 10
+acc = 20
 lastRange = 50
 
 maskLineTop = 370
@@ -92,6 +92,9 @@ while success:
         ## Left threshold
         img_left = mask[y - acc:y, left_base - fac:left_base + fac]
         contours_left, _ = cv2.findContours(img_left, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        ## Right threshold
+        img_right = mask[y - acc:y, right_base - fac:right_base + fac]
+        contours_right, _ = cv2.findContours(img_right, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
         for contour in contours_left:
             M = cv2.moments(contour)
@@ -102,9 +105,6 @@ while success:
                 left_base = left_base - fac + cx
 
 
-        ## Right threshold
-        img_right = mask[y - acc:y, right_base - fac:right_base + fac]
-        contours_right, _ = cv2.findContours(img_right, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         for contour in contours_right:
             M = cv2.moments(contour)
             if M["m00"] != 0:
@@ -180,8 +180,18 @@ while success:
     original_rx = np.array(original_rx)
     contour_points = np.vstack((original_lx, original_rx[::-1]))           
 
-    cv2.drawContours(frame, [contour_points], -1, (0, 255, 0), thickness=cv2.FILLED) 
-    
+    # Erstelle eine transparente Overlay-Schicht
+    overlay = frame.copy()
+    cv2.drawContours(overlay, [contour_points], -1, (0, 255, 0), thickness=cv2.FILLED)
+
+    # Setze den Alpha-Wert für die Overlay-Schicht
+    alpha = 0.5  # Hier kannst du den Alpha-Wert einstellen (0 für transparent, 1 für undurchsichtig)
+
+    # Führe die Alpha-Blendung durch
+    cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
+
+    #hermiteTest.interpolate(original_lx, 0.5, frame, height)
+    #hermiteTest.interpolate(original_rx, 0.5, frame, height)
 
     if len(original_lx) > 1:
         pts_left = np.array(original_lx, np.int32).reshape((-1, 1, 2))
@@ -191,38 +201,6 @@ while success:
         pts_right = np.array(original_rx, np.int32).reshape((-1, 1, 2))
         cv2.polylines(frame, [pts_right], isClosed=False, color=(0, 0, 255), thickness=2)
 
-    # # Interpolation mit einem Polynom des Grad 2 (Sie können den Grad anpassen)
-    # degree = 4
-    # # Extrahieren Sie x- und y-Koordinaten der linken und rechten Punkte
-    # lx_x, lx_y = zip(*original_lx) if len(original_lx) > 0 else ([], [])
-    # rx_x, rx_y = zip(*original_rx) if len(original_rx) > 0 else ([], [])
-
-    # # Überprüfen Sie, ob genügend Punkte für die Interpolation vorhanden sind
-    # if len(lx_x) > 2 and len(lx_y) > 2:
-    #     lx_poly = np.polyfit(lx_y, lx_x, degree)
-    #     interpolated_y = np.linspace(min(lx_y), max(lx_y), 100)
-    #     interpolated_lx = np.polyval(lx_poly, interpolated_y)
-
-    # if len(rx_x) > 2 and len(rx_y) > 2:
-    #     rx_poly = np.polyfit(rx_y, rx_x, degree)
-    #     interpolated_y = np.linspace(min(rx_y), max(rx_y), 100)
-    #     interpolated_rx = np.polyval(rx_poly, interpolated_y)
-
-    # # Zeichnen Sie die Originalpunkte auf dem Bild
-    # for point in original_lx:
-    #     cv2.circle(frame, point, 5, (0, 255, 0), -1)
-
-    # for point in original_rx:
-    #     cv2.circle(frame, point, 5, (0, 255, 0), -1)
-
-    # # Konvertieren Sie die interpolierten Punkte in das Format für die Verwendung in cv2.polylines
-    # if len(lx_x) > 2 and len(lx_y) > 2:
-    #     pts_left = np.array(list(zip(interpolated_lx, interpolated_y)), np.int32).reshape((-1, 1, 2))
-    #     cv2.polylines(frame, [pts_left], isClosed=False, color=(255, 0, 0), thickness=2)
-
-    # if len(rx_x) > 2 and len(rx_y) > 2:
-    #     pts_right = np.array(list(zip(interpolated_rx, interpolated_y)), np.int32).reshape((-1, 1, 2))
-    #     cv2.polylines(frame, [pts_right], isClosed=False, color=(0, 0, 255), thickness=2)
 
     cv2.imshow("Lane Detection", frame)
     
