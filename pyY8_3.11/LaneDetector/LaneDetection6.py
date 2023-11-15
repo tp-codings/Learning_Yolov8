@@ -3,9 +3,13 @@ import numpy as np
 from LaneDetector import hermiteTest
 vidcap = cv2.VideoCapture("Videos/LaneVideo.mp4")
 success, image = vidcap.read()
+import time
 
 width = 640
 height = 480
+
+oldTime = 0
+fpsFILT = 20
 
 fac = 60
 acc = 20
@@ -13,6 +17,7 @@ lastRange = 50
 
 maskLineTop = 370
 maskLineBottom = 470
+
 
 def nothing(x):
     pass
@@ -27,10 +32,12 @@ cv2.createTrackbar("U - S", "Trackbars", 50, 255, nothing)
 cv2.createTrackbar("U - V", "Trackbars", 255, 255, nothing)
 
 ## Choosing points for perspective transformation
-tl = (222, maskLineTop)
-bl = (70 ,maskLineBottom)
+tl = (240, maskLineTop)
+bl = (90 ,maskLineBottom)
 tr = (400, maskLineTop)
 br = (538, maskLineBottom)
+
+carCenter = (width//2, maskLineBottom)
 
 leftBottomLast = (0, 0)
 leftTopLast = (width, height)
@@ -39,14 +46,24 @@ rightBottomLast = (0, 0)
 rightTopLast = (width, height)
 
 while success:
+    newTime = time.time()
+    deltaTime = newTime - oldTime
+    oldTime = newTime
+    fps = 1/deltaTime
+
+    fpsFILT = fpsFILT*.95+fps*.05
+
     success, image = vidcap.read()
+
     frame = cv2.resize(image, (width, height))
+    
+    cv2.putText(frame, str(int(fpsFILT)), (5, 14), cv2.FONT_HERSHEY_COMPLEX, 0.5, (0,0,0), 1)
 
 
-    #cv2.circle(frame, tl, 5, (0,0,255), -1)
-    #cv2.circle(frame, bl, 5, (0,0,255), -1)
-    #cv2.circle(frame, tr, 5, (0,0,255), -1)
-    #cv2.circle(frame, br, 5, (0,0,255), -1)
+    cv2.circle(frame, tl, 5, (0,0,255), -1)
+    cv2.circle(frame, bl, 5, (0,0,255), -1)
+    cv2.circle(frame, tr, 5, (0,0,255), -1)
+    cv2.circle(frame, br, 5, (0,0,255), -1)
 
     ## Applying perspective transformation
     pts1 = np.float32([tl, bl, tr, br]) 
@@ -170,25 +187,65 @@ while success:
     # for point in original_rx:
     #     cv2.circle(frame, point, 5, (0, 255, 0), -1)
 
-    #Join points
     # Sortiere die Punkte nach ihrer x-Koordinate
     original_lx = sorted(original_lx, key=lambda x: x[1])
     original_rx = sorted(original_rx, key=lambda x: x[1])
 
+    # Berechne die Distanzen
+    distLeft = carCenter[0] - original_lx[-1][0]
+    distRight = original_rx[-1][0] - carCenter[0]
+
+    print(distLeft, distRight)
+
+    # Berechne die Spurbreite
+    laneWidth = distLeft + distRight
+    normFactor = (width // 3) / laneWidth
+
+    lineHeight = 10
+
+    # Berechne die Position des Verfolgers auf der Mittellinie
+    centerTracker = (width // 3 + int(distLeft * normFactor), height // 3)
+
+    # Zeichne die Linien und den Verfolger
+    cv2.line(frame, (width // 3, height // 3), (centerTracker[0], height // 3), (0, 0, 0), 2)
+    cv2.line(frame, (width // 3 * 2, height // 3), (centerTracker[0], height // 3), (0, 0, 0), 2)
+
+    cv2.line(frame, (width // 3, height // 3 + lineHeight), (width // 3, height // 3 - lineHeight), (0, 0, 0), 2)
+    cv2.line(frame, (width // 3 * 2, height // 3 + lineHeight), (width // 3 * 2, height // 3 - lineHeight), (0, 0, 0), 2)
+    cv2.line(frame, (width // 2, height // 3 + lineHeight), (width // 2, height // 3 - lineHeight), (0, 255, 0), 2)
+
+    cv2.circle(frame, centerTracker, 5, (0, 255, 0), -1)
+
+    # Berechne die Abweichung des centerTracker vom tatsächlichen Mittelpunkt in Prozent
+    actualCenter = width // 2
+    distanceFromCenter = abs(centerTracker[0] - actualCenter)
+    percentageDeviation = (distanceFromCenter / (width // 6)) * 100
+
+    # Gebe den Prozentsatz der Abweichung aus
+    # Wähle den Text basierend auf der größeren Distanz
+    if distLeft > distRight:
+        cv2.putText(frame, "{:.1f}%".format(percentageDeviation), (width // 2 + 20, height // 2 - 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
+    else:
+        cv2.putText(frame, "{:.1f}%".format(percentageDeviation), (width // 3 + 20, height // 2 - 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
+
+
     # Konvertiere die Punkte in ein NumPy-Array
     original_lx = np.array(original_lx)
     original_rx = np.array(original_rx)
-    contour_points = np.vstack((original_lx, original_rx[::-1]))           
+    if original_lx.any() and original_rx.any():
+        contour_points = np.vstack((original_lx, original_rx[::-1]))   
 
-    # Erstelle eine transparente Overlay-Schicht
-    overlay = frame.copy()
-    cv2.drawContours(overlay, [contour_points], -1, (0, 255, 0), thickness=cv2.FILLED)
+        # Erstelle eine transparente Overlay-Schicht
+        overlay = frame.copy()
+        if contour_points.any():
+            cv2.drawContours(overlay, [contour_points], -1, (0, 255, 0), thickness=cv2.FILLED)
 
-    # Setze den Alpha-Wert für die Overlay-Schicht
-    alpha = 0.5  # Hier kannst du den Alpha-Wert einstellen (0 für transparent, 1 für undurchsichtig)
+        # Setze den Alpha-Wert für die Overlay-Schicht
+        alpha = 0.5  # Hier kannst du den Alpha-Wert einstellen (0 für transparent, 1 für undurchsichtig)
 
-    # Führe die Alpha-Blendung durch
-    cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
+        # Führe die Alpha-Blendung durch
+        cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
+
 
     #hermiteTest.interpolate(original_lx, 0.5, frame, height)
     #hermiteTest.interpolate(original_rx, 0.5, frame, height)
@@ -202,6 +259,8 @@ while success:
         cv2.polylines(frame, [pts_right], isClosed=False, color=(0, 0, 255), thickness=2)
 
 
+
+
     cv2.imshow("Lane Detection", frame)
     
     #cv2.imshow("Original", frame)
@@ -211,3 +270,4 @@ while success:
     #cv2.waitKey(0)
     if cv2.waitKey(10) == 27:
         break
+
