@@ -1,2 +1,2 @@
 # Yolov8_Learning
- Learning Journey for Yolov8
+This is just my Repo for learning Yolov8 with some random scripts to play around. 
