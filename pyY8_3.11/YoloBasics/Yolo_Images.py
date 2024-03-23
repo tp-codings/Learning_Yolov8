@@ -4,7 +4,7 @@ import torch
 
 print(torch.cuda.is_available())
 
-model = YOLO('YoloWeights/playingCardDetection.pt')
+model = YOLO('YoloWeights/TD.pt')
 
-results = model("Images\Poker-hands-sheet.jpg", show=True)
+results = model("Images\GZ8.jpeg", show=True)
 cv2.waitKey(0)

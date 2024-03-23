@@ -17,7 +17,7 @@ circle_radius = 50
 outline_width = 2
 outline_color = Qt.white
 
-model = YOLO("YoloWeights/fighterDetection_y8l.pt")
+model = YOLO("YoloWeights/Railroad_Detection.pt")
 classNames = model.names
 
 

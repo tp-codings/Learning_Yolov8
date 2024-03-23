@@ -4,7 +4,7 @@ def click_event(event, x, y, flags, param):
     if event == cv2.EVENT_LBUTTONDOWN:
         print(f"Klick bei den Koordinaten ({x}, {y})")
 
-cap = cv2.VideoCapture('Videos/escalator.mp4')  
+cap = cv2.VideoCapture('Videos/GZ2.mp4')  
 
 cv2.namedWindow('Video')
 
